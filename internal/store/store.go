@@ -19,6 +19,67 @@ func (s *Store) UpsertAccount(name string) (int64, error) {
 	return id, err
 }
 
+func (s *Store) ActiveRules() ([]model.Rule, error) {
+	rows, err := s.db.Query(`SELECT id,field,match_type,pattern,category_id FROM rules`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.Rule
+	for rows.Next() {
+		var r model.Rule
+		if err := rows.Scan(&r.ID, &r.Field, &r.MatchType, &r.Pattern, &r.CategoryID); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) UncategorizedTransactions() ([]model.Transaction, error) {
+	rows, err := s.db.Query(`SELECT id,partner_name,partner_iban,type,payment_reference
+		FROM transactions WHERE category_id IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.Transaction
+	for rows.Next() {
+		var t model.Transaction
+		if err := rows.Scan(&t.ID, &t.PartnerName, &t.PartnerIban, &t.Type, &t.PaymentReference); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CategoryNames() (map[string]int64, []string, error) {
+	rows, err := s.db.Query(`SELECT id,name FROM categories ORDER BY name`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	byName := map[string]int64{}
+	var names []string
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, nil, err
+		}
+		byName[name] = id
+		names = append(names, name)
+	}
+	return byName, names, rows.Err()
+}
+
+func (s *Store) SetCategory(txID, categoryID int64, by string) error {
+	_, err := s.db.Exec(`UPDATE transactions SET category_id=?, categorized_by=? WHERE id=?`,
+		categoryID, by, txID)
+	return err
+}
+
 func (s *Store) InsertTransactions(txns []model.Transaction) (int, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
