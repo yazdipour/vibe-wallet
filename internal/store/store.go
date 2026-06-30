@@ -80,6 +80,55 @@ func (s *Store) SetCategory(txID, categoryID int64, by string) error {
 	return err
 }
 
+func (s *Store) ListAccounts() ([]model.Account, error) {
+	rows, err := s.db.Query(`SELECT id,name FROM accounts ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.Account
+	for rows.Next() {
+		var a model.Account
+		if err := rows.Scan(&a.ID, &a.Name); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// ListTransactions returns transactions for an account (0 = all), newest first.
+func (s *Store) ListTransactions(accountID int64) ([]model.Transaction, error) {
+	q := `SELECT t.id,t.account_id,t.booking_date,t.partner_name,t.partner_iban,
+	       t.type,t.payment_reference,t.amount_eur,
+	       COALESCE(t.categorized_by,''),COALESCE(c.name,'')
+	      FROM transactions t LEFT JOIN categories c ON c.id=t.category_id`
+	args := []any{}
+	if accountID > 0 {
+		q += ` WHERE t.account_id=?`
+		args = append(args, accountID)
+	}
+	q += ` ORDER BY t.booking_date DESC, t.id DESC`
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.Transaction
+	for rows.Next() {
+		var t model.Transaction
+		var catName string
+		if err := rows.Scan(&t.ID, &t.AccountID, &t.BookingDate, &t.PartnerName,
+			&t.PartnerIban, &t.Type, &t.PaymentReference, &t.AmountEUR,
+			&t.CategorizedBy, &catName); err != nil {
+			return nil, err
+		}
+		t.AccountName = catName // reuse: stash category name for the API row
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) InsertTransactions(txns []model.Transaction) (int, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
