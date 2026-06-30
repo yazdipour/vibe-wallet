@@ -5,11 +5,13 @@ import Transactions from "./pages/Transactions";
 import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
 import Visualization from "./pages/Visualization";
+import Categorize from "./pages/Categorize";
 
 const nav = [
   ["/", "Transactions"],
   ["/visualize", "Visualize"],
   ["/upload", "Upload"],
+  ["/categorize", "Categorize"],
   ["/rules", "Rules"],
   ["/settings", "Settings"],
 ] as const;
@@ -33,6 +35,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Transactions />} />
             <Route path="/visualize" element={<Visualization />} />
+            <Route path="/categorize" element={<Categorize />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/settings" element={<Settings />} />
