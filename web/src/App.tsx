@@ -4,9 +4,11 @@ import Upload from "./pages/Upload";
 import Transactions from "./pages/Transactions";
 import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
+import Visualization from "./pages/Visualization";
 
 const nav = [
   ["/", "Transactions"],
+  ["/visualize", "Visualize"],
   ["/upload", "Upload"],
   ["/rules", "Rules"],
   ["/settings", "Settings"],
@@ -30,6 +32,7 @@ export default function App() {
         <main className="mx-auto max-w-5xl p-4">
           <Routes>
             <Route path="/" element={<Transactions />} />
+            <Route path="/visualize" element={<Visualization />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/settings" element={<Settings />} />
