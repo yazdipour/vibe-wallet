@@ -100,3 +100,24 @@ func TestRulesCRUDAndCategorize(t *testing.T) {
 		t.Fatalf("expected non-nil log array, got null: %s", rec2.Body)
 	}
 }
+
+func TestLLMHealthUnconfigured(t *testing.T) {
+	d, _ := db.Open(":memory:")
+	defer d.Close()
+	h := NewServer(store.New(d), os.DirFS("."))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/llm/health", nil))
+	if rec.Code != 200 {
+		t.Fatalf("health: %d %s", rec.Code, rec.Body)
+	}
+	var result struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v body=%s", err, rec.Body)
+	}
+	if result.Status != "unconfigured" {
+		t.Fatalf("want unconfigured, got %q (body %s)", result.Status, rec.Body)
+	}
+}
