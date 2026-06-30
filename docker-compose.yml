@@ -1,0 +1,17 @@
+services:
+  vibe-badget:
+    image: ghcr.io/sh-yazdipour/vibe-badget:latest
+    container_name: vibe-badget
+    ports:
+      - "8080:8080"
+    volumes:
+      - vibe-badget-data:/data
+    environment:
+      DB_PATH: /data/vibe-badget.db
+      ADDR: ":8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  vibe-badget-data:
