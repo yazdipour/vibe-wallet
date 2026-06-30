@@ -25,7 +25,7 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
-	h := httpapi.NewServer(store.New(d), nil, staticFS())
+	h := httpapi.NewServer(store.New(d), staticFS())
 	log.Println("listening on", addr)
 	log.Fatal(http.ListenAndServe(addr, h))
 }

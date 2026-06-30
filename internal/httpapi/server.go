@@ -5,18 +5,16 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/sh-yazdipour/vibe-badget/internal/categorize"
 	"github.com/sh-yazdipour/vibe-badget/internal/store"
 )
 
 type Server struct {
 	store *store.Store
-	llm   categorize.Classifier
 	mux   *http.ServeMux
 }
 
-func NewServer(s *store.Store, llm categorize.Classifier, static fs.FS) http.Handler {
-	srv := &Server{store: s, llm: llm, mux: http.NewServeMux()}
+func NewServer(s *store.Store, static fs.FS) http.Handler {
+	srv := &Server{store: s, mux: http.NewServeMux()}
 
 	srv.mux.HandleFunc("GET /api/accounts", srv.listAccounts)
 	srv.mux.HandleFunc("GET /api/transactions", srv.listTransactions)
