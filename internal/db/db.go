@@ -37,13 +37,6 @@ func execScript(d *sql.DB, script string) error {
 	return nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // Open opens (or creates) the SQLite database, applies the schema and seed
 // data, and returns a ready connection. Use ":memory:" in tests.
 func Open(path string) (*sql.DB, error) {
@@ -51,6 +44,7 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	d.SetMaxOpenConns(1)
 	for _, pragma := range []string{
 		"PRAGMA foreign_keys = ON",
 		"PRAGMA busy_timeout = 5000",

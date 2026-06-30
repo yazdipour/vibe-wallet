@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS rules (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_dedup ON rules(field, match_type, pattern);
+
 CREATE TABLE IF NOT EXISTS transactions (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   account_id        INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
