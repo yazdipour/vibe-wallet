@@ -33,6 +33,10 @@ export const api = {
   categories: () => fetch("/api/categories").then(j<Category[]>),
   createCategory: (input: { name: string; icon: string; color: string }) =>
     fetch("/api/categories", { method: "POST", body: JSON.stringify(input), headers: { "Content-Type": "application/json" } }).then(j<Category>),
+  updateCategoryAppearance: (id: number, input: { icon: string; color: string }) =>
+    fetch(`/api/categories/${id}`, {
+      method: "PUT", body: JSON.stringify(input), headers: { "Content-Type": "application/json" },
+    }).then(j<Category>),
   rules: () => fetch("/api/rules").then(j<Rule[]>),
   createRule: (r: Omit<Rule, "id">) =>
     fetch("/api/rules", { method: "POST", body: JSON.stringify(r), headers: { "Content-Type": "application/json" } }).then(j<Rule>),

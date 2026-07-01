@@ -33,6 +33,7 @@ export default function Categorize() {
     { name: "", icon: CATEGORY_ICONS[0], color: PALETTE[0] },
   );
   const [expandedCategory, setExpandedCategory] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<{ icon: string; color: string } | null>(null);
   const [newRule, setNewRule] = useState({ field: "partner_name", match_type: "keyword", pattern: "" });
 
   const reload = () => {
@@ -86,6 +87,16 @@ export default function Categorize() {
     try {
       await api.deleteRule(id);
       reload();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  }
+
+  async function saveCategoryAppearance(id: number) {
+    if (!editDraft) return;
+    try {
+      const updated = await api.updateCategoryAppearance(id, editDraft);
+      setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
     } catch (e) {
       toast.error(String(e));
     }
@@ -145,7 +156,15 @@ export default function Categorize() {
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 p-2 text-left"
-                    onClick={() => setExpandedCategory(isExpanded ? null : c.id)}
+                    onClick={() => {
+                      if (isExpanded) {
+                        setExpandedCategory(null);
+                        setEditDraft(null);
+                      } else {
+                        setExpandedCategory(c.id);
+                        setEditDraft({ icon: c.icon, color: c.color });
+                      }
+                    }}
                   >
                     <span
                       className="flex size-6 items-center justify-center rounded-full"
@@ -166,6 +185,41 @@ export default function Categorize() {
                           <Button size="sm" variant="ghost" onClick={() => deleteCategoryRule(r.id)}>Delete</Button>
                         </div>
                       ))}
+                      {editDraft && (
+                        <div className="space-y-2 border-b pb-2">
+                          <div className="flex flex-wrap gap-1">
+                            {CATEGORY_ICONS.map((iconName) => {
+                              const Icon = resolveIcon(iconName);
+                              const selected = editDraft.icon === iconName;
+                              return (
+                                <button
+                                  key={iconName}
+                                  type="button"
+                                  className={`flex size-8 items-center justify-center rounded-lg border ${selected ? "border-foreground" : "border-input"}`}
+                                  onClick={() => setEditDraft({ ...editDraft, icon: iconName })}
+                                >
+                                  <Icon size={16} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {PALETTE.map((color) => {
+                              const selected = editDraft.color === color;
+                              return (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  className={`size-8 rounded-full ${selected ? "ring-2 ring-offset-2 ring-foreground" : ""}`}
+                                  style={{ backgroundColor: color }}
+                                  onClick={() => setEditDraft({ ...editDraft, color })}
+                                />
+                              );
+                            })}
+                          </div>
+                          <Button size="sm" onClick={() => saveCategoryAppearance(c.id)}>Save</Button>
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-end gap-2">
                         <select
                           className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
