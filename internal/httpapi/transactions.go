@@ -17,6 +17,19 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, txns)
 }
 
+func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err := s.store.DeleteTransaction(id); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.WriteHeader(204)
+}
+
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(16 << 20); err != nil { // 16 MB
 		http.Error(w, "bad form", 400)

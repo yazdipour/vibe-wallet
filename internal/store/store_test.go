@@ -104,3 +104,28 @@ func TestUpdateCategoryAppearance(t *testing.T) {
 		t.Fatal("category not found after update")
 	}
 }
+
+func TestDeleteTransaction(t *testing.T) {
+	s := newStore(t)
+	_, err := s.InsertTransactions([]model.Transaction{
+		{AccountName: "Main", PartnerName: "LIDL", AmountEUR: -5, DedupeHash: "del-1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	txns, err := s.ListTransactions(0)
+	if err != nil || len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d err=%v", len(txns), err)
+	}
+	id := txns[0].ID
+
+	if err := s.DeleteTransaction(id); err != nil {
+		t.Fatalf("DeleteTransaction: %v", err)
+	}
+
+	txns, err = s.ListTransactions(0)
+	if err != nil || len(txns) != 0 {
+		t.Fatalf("expected 0 transactions after delete, got %d err=%v", len(txns), err)
+	}
+}

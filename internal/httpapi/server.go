@@ -30,6 +30,7 @@ func NewServer(s *store.Store, static fs.FS) http.Handler {
 	srv.mux.HandleFunc("PUT /api/settings", srv.putSettings)
 	srv.mux.HandleFunc("GET /api/llm/health", srv.llmHealth)
 	srv.mux.HandleFunc("PUT /api/transactions/{id}/category", srv.setTransactionCategory)
+	srv.mux.HandleFunc("DELETE /api/transactions/{id}", srv.deleteTransaction)
 
 	// SPA: serve embedded files, fall back to index.html for client routes.
 	srv.mux.Handle("/", spaHandler(static))

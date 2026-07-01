@@ -284,3 +284,46 @@ func TestUpdateCategoryAppearance(t *testing.T) {
 		t.Fatalf("want 400 for missing icon/color, got %d", badRec.Code)
 	}
 }
+
+func TestDeleteTransaction(t *testing.T) {
+	d, _ := db.Open(":memory:")
+	defer d.Close()
+	s := store.New(d)
+	h := NewServer(s, os.DirFS("."))
+
+	_, err := s.InsertTransactions([]model.Transaction{
+		{AccountName: "Main", PartnerName: "Mystery Shop", DedupeHash: "del-http-1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/transactions", nil))
+	var txns []struct {
+		ID          int64  `json:"id"`
+		PartnerName string `json:"partner_name"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &txns)
+	var txID int64
+	for _, t2 := range txns {
+		if t2.PartnerName == "Mystery Shop" {
+			txID = t2.ID
+		}
+	}
+	if txID == 0 {
+		t.Fatalf("could not find inserted transaction: %s", rec.Body)
+	}
+
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, httptest.NewRequest("DELETE", fmt.Sprintf("/api/transactions/%d", txID), nil))
+	if rec2.Code != 204 {
+		t.Fatalf("want 204, got %d %s", rec2.Code, rec2.Body)
+	}
+
+	rec3 := httptest.NewRecorder()
+	h.ServeHTTP(rec3, httptest.NewRequest("GET", "/api/transactions", nil))
+	if bytes.Contains(rec3.Body.Bytes(), []byte("Mystery Shop")) {
+		t.Fatalf("transaction still present after delete: %s", rec3.Body)
+	}
+}
