@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { Upload as UploadIcon } from "lucide-react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-export default function Upload() {
+export function UploadDialog() {
   const [busy, setBusy] = useState(false);
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -23,11 +27,14 @@ export default function Upload() {
   }
 
   return (
-    <Card>
-      <CardHeader><CardTitle>Import transactions</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
+    <Dialog>
+      <DialogTrigger render={<Button variant="ghost" size="icon" />}>
+        <UploadIcon size={16} />
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Import transactions</DialogTitle></DialogHeader>
         <Input type="file" accept=".csv" onChange={onUpload} disabled={busy} />
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

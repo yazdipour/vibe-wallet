@@ -3,7 +3,8 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import Upload from "./pages/Upload";
+import { AccountInfoDialog } from "@/components/AccountInfoDialog";
+import { UploadDialog } from "@/components/UploadDialog";
 import Transactions from "./pages/Transactions";
 import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
@@ -13,7 +14,6 @@ import Categorize from "./pages/Categorize";
 const nav = [
   ["/", "Transactions"],
   ["/visualize", "Visualize"],
-  ["/upload", "Upload"],
   ["/categorize", "Categorize"],
   ["/rules", "Rules"],
   ["/settings", "Settings"],
@@ -25,7 +25,6 @@ function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="ml-auto"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
       {resolvedTheme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -47,7 +46,11 @@ export default function App() {
                   {label}
                 </NavLink>
               ))}
-              <ThemeToggle />
+              <div className="ml-auto flex items-center gap-1">
+                <AccountInfoDialog />
+                <ThemeToggle />
+                <UploadDialog />
+              </div>
             </nav>
           </header>
           <main className="mx-auto max-w-5xl p-4">
@@ -55,7 +58,6 @@ export default function App() {
               <Route path="/" element={<Transactions />} />
               <Route path="/visualize" element={<Visualization />} />
               <Route path="/categorize" element={<Categorize />} />
-              <Route path="/upload" element={<Upload />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
