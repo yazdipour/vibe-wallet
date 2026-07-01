@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/sh-yazdipour/vibe-badget/internal/db"
+	"github.com/sh-yazdipour/vibe-badget/internal/model"
 	"github.com/sh-yazdipour/vibe-badget/internal/store"
 )
 
@@ -126,5 +128,74 @@ func TestLLMHealthUnconfigured(t *testing.T) {
 	}
 	if result.Status != "unconfigured" {
 		t.Fatalf("want unconfigured, got %q (body %s)", result.Status, rec.Body)
+	}
+}
+
+func TestSetTransactionCategory(t *testing.T) {
+	d, _ := db.Open(":memory:")
+	defer d.Close()
+	s := store.New(d)
+	h := NewServer(s, os.DirFS("."))
+
+	_, err := s.InsertTransactions([]model.Transaction{
+		{AccountName: "Main", PartnerName: "Mystery Shop", DedupeHash: "manual-1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// find the inserted transaction's id and a category id via the API
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/transactions", nil))
+	var txns []struct {
+		ID           int64  `json:"id"`
+		PartnerName  string `json:"partner_name"`
+		CategoryName string `json:"category_name"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &txns)
+	var txID int64
+	for _, t2 := range txns {
+		if t2.PartnerName == "Mystery Shop" {
+			txID = t2.ID
+		}
+	}
+	if txID == 0 {
+		t.Fatalf("could not find inserted transaction: %s", rec.Body)
+	}
+
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, httptest.NewRequest("GET", "/api/categories", nil))
+	var cats []struct {
+		ID int64 `json:"id"`
+	}
+	json.Unmarshal(rec2.Body.Bytes(), &cats)
+	if len(cats) == 0 {
+		t.Fatal("no seeded categories")
+	}
+	catID := cats[0].ID
+
+	// missing category_id -> 400
+	badReq := httptest.NewRequest("PUT", fmt.Sprintf("/api/transactions/%d/category", txID),
+		bytes.NewBufferString(`{}`))
+	badRec := httptest.NewRecorder()
+	h.ServeHTTP(badRec, badReq)
+	if badRec.Code != 400 {
+		t.Fatalf("want 400 for missing category_id, got %d", badRec.Code)
+	}
+
+	// valid assignment -> 204
+	req := httptest.NewRequest("PUT", fmt.Sprintf("/api/transactions/%d/category", txID),
+		bytes.NewBufferString(fmt.Sprintf(`{"category_id":%d}`, catID)))
+	rec3 := httptest.NewRecorder()
+	h.ServeHTTP(rec3, req)
+	if rec3.Code != 204 {
+		t.Fatalf("want 204, got %d %s", rec3.Code, rec3.Body)
+	}
+
+	// confirm it stuck, categorized_by = manual
+	rec4 := httptest.NewRecorder()
+	h.ServeHTTP(rec4, httptest.NewRequest("GET", "/api/transactions", nil))
+	if !bytes.Contains(rec4.Body.Bytes(), []byte(`"categorized_by":"manual"`)) {
+		t.Fatalf("expected categorized_by manual in response: %s", rec4.Body)
 	}
 }
