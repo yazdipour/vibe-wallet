@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type Account, type Category, type Tx } from "@/lib/api";
 import { filterTxns } from "@/lib/transactions";
 import { formatEUR } from "@/lib/format";
+import { resolveIcon } from "@/lib/icons";
+import { readableTextColor } from "@/lib/colors";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -66,7 +68,14 @@ export default function Transactions() {
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
             <SelectItem value="uncategorized">Uncategorized</SelectItem>
-            {categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+            {categories.map((c) => {
+              const Icon = resolveIcon(c.icon);
+              return (
+                <SelectItem key={c.id} value={c.name}>
+                  <span className="flex items-center gap-1.5"><Icon size={14} />{c.name}</span>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         <Input placeholder="Search partner or reference…" value={search}
@@ -96,7 +105,20 @@ export default function Transactions() {
               </TableCell>
               <TableCell>
                 {t.category_name ? (
-                  <Badge variant={categoryVariant(t.categorized_by)}>{t.category_name}</Badge>
+                  (() => {
+                    const category = categories.find((c) => c.name === t.category_name);
+                    const Icon = resolveIcon(category?.icon ?? "Tag");
+                    const bg = category?.color ?? "#6b7280";
+                    return (
+                      <Badge
+                        variant={categoryVariant(t.categorized_by)}
+                        style={{ backgroundColor: bg, color: readableTextColor(bg), borderColor: "transparent" }}
+                      >
+                        <Icon size={12} />
+                        {t.category_name}
+                      </Badge>
+                    );
+                  })()
                 ) : (
                   <Select onValueChange={(v) => v && assignCategory(t, Number(v))}>
                     <SelectTrigger className="w-36"><SelectValue placeholder="Assign…" /></SelectTrigger>
