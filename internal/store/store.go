@@ -128,7 +128,7 @@ func (s *Store) ListTransactions(accountID int64) ([]model.Transaction, error) {
 }
 
 func (s *Store) ListCategories() ([]model.Category, error) {
-	rows, err := s.db.Query(`SELECT id,name FROM categories ORDER BY name`)
+	rows, err := s.db.Query(`SELECT id,name,icon,color FROM categories ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (s *Store) ListCategories() ([]model.Category, error) {
 	out := make([]model.Category, 0)
 	for rows.Next() {
 		var c model.Category
-		if err := rows.Scan(&c.ID, &c.Name); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Icon, &c.Color); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -144,11 +144,13 @@ func (s *Store) ListCategories() ([]model.Category, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) CreateCategory(name string) (model.Category, error) {
+func (s *Store) CreateCategory(name, icon, color string) (model.Category, error) {
 	var c model.Category
 	err := s.db.QueryRow(
-		`INSERT INTO categories(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET name=excluded.name RETURNING id,name`,
-		name).Scan(&c.ID, &c.Name)
+		`INSERT INTO categories(name,icon,color) VALUES(?,?,?)
+		 ON CONFLICT(name) DO UPDATE SET icon=excluded.icon, color=excluded.color
+		 RETURNING id,name,icon,color`,
+		name, icon, color).Scan(&c.ID, &c.Name, &c.Icon, &c.Color)
 	return c, err
 }
 

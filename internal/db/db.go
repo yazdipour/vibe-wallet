@@ -37,6 +37,43 @@ func execScript(d *sql.DB, script string) error {
 	return nil
 }
 
+// migrateCategoryColumns adds icon/color columns to a categories table that
+// predates them (the shape any pre-existing database has). It's a no-op if
+// the columns already exist, so it's safe to call on every Open().
+func migrateCategoryColumns(d *sql.DB) error {
+	rows, err := d.Query(`PRAGMA table_info(categories)`)
+	if err != nil {
+		return err
+	}
+	existing := map[string]bool{}
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+
+	if !existing["icon"] {
+		if _, err := d.Exec(`ALTER TABLE categories ADD COLUMN icon TEXT NOT NULL DEFAULT 'Tag'`); err != nil {
+			return err
+		}
+	}
+	if !existing["color"] {
+		if _, err := d.Exec(`ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT '#6b7280'`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Open opens (or creates) the SQLite database, applies the schema and seed
 // data, and returns a ready connection. Use ":memory:" in tests.
 func Open(path string) (*sql.DB, error) {
@@ -55,6 +92,10 @@ func Open(path string) (*sql.DB, error) {
 		}
 	}
 	if err := execScript(d, schemaSQL); err != nil {
+		d.Close()
+		return nil, err
+	}
+	if err := migrateCategoryColumns(d); err != nil {
 		d.Close()
 		return nil, err
 	}
