@@ -1,8 +1,8 @@
 export const PALETTE: string[] = [
-  "#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4",
-  "#a855f7", "#ec4899", "#84cc16", "#0ea5e9", "#f97316",
-  "#14b8a6", "#eab308", "#8b5cf6", "#f43f5e", "#10b981",
-  "#3b82f6", "#d946ef", "#64748b", "#78716c", "#111827",
+  "#F44336", "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
+  "#2196F3", "#03A9F4", "#00BCD4", "#009688", "#4CAF50",
+  "#8BC34A", "#CDDC39", "#FFEB3B", "#FFC107", "#FF9800",
+  "#FF5722", "#795548", "#607D8B", "#9E9E9E", "#2E7D32",
 ];
 
 export function readableTextColor(hex: string): string {
