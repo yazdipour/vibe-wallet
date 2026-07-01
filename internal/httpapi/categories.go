@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) {
@@ -38,4 +39,26 @@ func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, c)
+}
+
+func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var in struct {
+		Icon  string `json:"icon"`
+		Color string `json:"color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Icon == "" || in.Color == "" {
+		http.Error(w, "icon and color required", 400)
+		return
+	}
+	c, err := s.store.UpdateCategoryAppearance(id, in.Icon, in.Color)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, 200, c)
 }

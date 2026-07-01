@@ -154,6 +154,14 @@ func (s *Store) CreateCategory(name, icon, color string) (model.Category, error)
 	return c, err
 }
 
+func (s *Store) UpdateCategoryAppearance(id int64, icon, color string) (model.Category, error) {
+	var c model.Category
+	err := s.db.QueryRow(
+		`UPDATE categories SET icon=?, color=? WHERE id=? RETURNING id,name,icon,color`,
+		icon, color, id).Scan(&c.ID, &c.Name, &c.Icon, &c.Color)
+	return c, err
+}
+
 func (s *Store) ListRules() ([]model.Rule, error) { return s.ActiveRules() }
 
 func (s *Store) CreateRule(r model.Rule) (model.Rule, error) {

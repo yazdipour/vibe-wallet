@@ -70,3 +70,37 @@ func TestCreateAndListCategoriesWithIconColor(t *testing.T) {
 		t.Fatalf("upsert did not update icon/color: %+v", c2)
 	}
 }
+
+func TestUpdateCategoryAppearance(t *testing.T) {
+	s := newStore(t)
+
+	c, err := s.CreateCategory("Utilities2", "Tag", "#6b7280")
+	if err != nil {
+		t.Fatalf("CreateCategory: %v", err)
+	}
+
+	updated, err := s.UpdateCategoryAppearance(c.ID, "Zap", "#f59e0b")
+	if err != nil {
+		t.Fatalf("UpdateCategoryAppearance: %v", err)
+	}
+	if updated.ID != c.ID || updated.Name != "Utilities2" || updated.Icon != "Zap" || updated.Color != "#f59e0b" {
+		t.Fatalf("unexpected updated category: %+v", updated)
+	}
+
+	cats, err := s.ListCategories()
+	if err != nil {
+		t.Fatalf("ListCategories: %v", err)
+	}
+	var found bool
+	for _, cat := range cats {
+		if cat.ID == c.ID {
+			found = true
+			if cat.Icon != "Zap" || cat.Color != "#f59e0b" {
+				t.Fatalf("listed category not updated: %+v", cat)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("category not found after update")
+	}
+}

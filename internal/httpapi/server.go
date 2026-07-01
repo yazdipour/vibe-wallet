@@ -25,6 +25,7 @@ func NewServer(s *store.Store, static fs.FS) http.Handler {
 	srv.mux.HandleFunc("POST /api/rules", srv.createRule)
 	srv.mux.HandleFunc("DELETE /api/rules/{id}", srv.deleteRule)
 	srv.mux.HandleFunc("POST /api/categories", srv.createCategory)
+	srv.mux.HandleFunc("PUT /api/categories/{id}", srv.updateCategory)
 	srv.mux.HandleFunc("GET /api/settings", srv.getSettings)
 	srv.mux.HandleFunc("PUT /api/settings", srv.putSettings)
 	srv.mux.HandleFunc("GET /api/llm/health", srv.llmHealth)

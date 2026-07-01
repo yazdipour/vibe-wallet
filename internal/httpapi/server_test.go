@@ -239,3 +239,47 @@ func TestCreateCategoryWithAndWithoutIconColor(t *testing.T) {
 		t.Fatalf("unexpected default response: %s", rec2.Body)
 	}
 }
+
+func TestUpdateCategoryAppearance(t *testing.T) {
+	d, _ := db.Open(":memory:")
+	defer d.Close()
+	h := NewServer(store.New(d), os.DirFS("."))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/categories", nil))
+	var cats []struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cats)
+	if len(cats) == 0 {
+		t.Fatal("no seeded categories")
+	}
+	target := cats[0]
+
+	req := httptest.NewRequest("PUT", fmt.Sprintf("/api/categories/%d", target.ID),
+		bytes.NewBufferString(`{"icon":"Zap","color":"#f59e0b"}`))
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req)
+	if rec2.Code != 200 {
+		t.Fatalf("update: %d %s", rec2.Code, rec2.Body)
+	}
+	var updated struct {
+		Name  string `json:"name"`
+		Icon  string `json:"icon"`
+		Color string `json:"color"`
+	}
+	json.Unmarshal(rec2.Body.Bytes(), &updated)
+	if updated.Name != target.Name || updated.Icon != "Zap" || updated.Color != "#f59e0b" {
+		t.Fatalf("unexpected response: %s", rec2.Body)
+	}
+
+	// missing icon/color -> 400
+	badReq := httptest.NewRequest("PUT", fmt.Sprintf("/api/categories/%d", target.ID),
+		bytes.NewBufferString(`{}`))
+	badRec := httptest.NewRecorder()
+	h.ServeHTTP(badRec, badReq)
+	if badRec.Code != 400 {
+		t.Fatalf("want 400 for missing icon/color, got %d", badRec.Code)
+	}
+}
