@@ -1,0 +1,16 @@
+services:
+  vibe-badget:
+    build: .
+    container_name: vibe-badget-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - vibe-badget-dev-data:/data
+    environment:
+      DB_PATH: /data/vibe-badget.db
+      ADDR: ":8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  vibe-badget-dev-data:
