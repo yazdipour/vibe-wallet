@@ -20,6 +20,11 @@ export const api = {
   accounts: () => fetch("/api/accounts").then(j<Account[]>),
   transactions: (accountId?: number) =>
     fetch(`/api/transactions${accountId ? `?account_id=${accountId}` : ""}`).then(j<Tx[]>),
+  setTransactionCategory: (id: number, categoryId: number) =>
+    fetch(`/api/transactions/${id}/category`, {
+      method: "PUT", body: JSON.stringify({ category_id: categoryId }),
+      headers: { "Content-Type": "application/json" },
+    }).then(j<void>),
   upload: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
