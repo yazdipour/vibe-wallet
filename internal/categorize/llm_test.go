@@ -155,8 +155,8 @@ func TestSuggestRulesDefaultsInvalidMatchType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SuggestRules: %v", err)
 	}
-	if len(suggestions) != 1 || suggestions[0].MatchType != "exact" {
-		t.Fatalf("expected match_type to default to exact: %+v", suggestions)
+	if len(suggestions) != 1 || suggestions[0].MatchType != "keyword" {
+		t.Fatalf("expected match_type to default to keyword: %+v", suggestions)
 	}
 }
 

@@ -270,7 +270,7 @@ func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, exis
 		}
 		matchType := r.MatchType
 		if matchType != "exact" && matchType != "keyword" {
-			matchType = "exact"
+			matchType = "keyword"
 		}
 		out = append(out, RuleSuggestion{
 			Pattern: r.Pattern, MatchType: matchType, Category: canonical, Reason: r.Reason,
