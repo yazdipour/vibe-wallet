@@ -238,9 +238,15 @@ func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, exis
 			"rules already cover these patterns, do not repeat them: %s\n\n"+
 			"Partners and their categories:\n%s\n\n"+
 			"Categories available: %s\n\n"+
-			"Suggest additional rules to automatically categorize future transactions from these "+
-			"merchants. For each rule, choose \"exact\" match_type if the partner name is always "+
-			"identical, or \"keyword\" if only part of the name is stable (e.g. a merchant ID varies). "+
+			"Suggest rules to automatically categorize future transactions from these merchants. Prefer "+
+			"a short, generic \"keyword\" pattern that captures just the merchant's brand name and would "+
+			"match all of that brand's variants — do NOT include store numbers, branch codes, or city/"+
+			"location names in the pattern. For example, if you see \"KAUFLAND DUESSELDORF 6\", "+
+			"\"KAUFLAND DUESSELDORF 4\", and \"KAUFLAND DUESSELDORF 2\" in the list, suggest ONE rule "+
+			"with pattern \"KAUFLAND\" and match_type \"keyword\" — not three separate rules with the "+
+			"full partner names. If multiple partners in the list share the same brand, consolidate them "+
+			"into a single suggested rule instead of one rule per partner. Only use match_type \"exact\" "+
+			"when a partner name has no variable suffix at all and is always identical. "+
 			"Reply with ONLY a JSON array of objects of the form "+
 			"{\"pattern\":\"<text>\",\"match_type\":\"exact\"|\"keyword\",\"category\":\"<name>\",\"reason\":\"<reason>\"}, nothing else.",
 		strings.Join(existingPatterns, ", "), strings.Join(pcLines, "\n"), strings.Join(categories, ", "))
