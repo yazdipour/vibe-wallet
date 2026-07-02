@@ -292,6 +292,7 @@ export default function Visualization() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <RadialBarChart data={radialData} startAngle={180} endAngle={0} innerRadius="55%" outerRadius="90%">
+                      <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
                       <PolarRadiusAxis tick={false} tickLine={false} axisLine={false} />
                       <RadialBar dataKey="income" stackId="a" fill="#16a34a" cornerRadius={8} />
                       <RadialBar dataKey="expenses" stackId="a" fill="#dc2626" cornerRadius={8} />
