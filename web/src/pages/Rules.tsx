@@ -1,24 +1,43 @@
-import { useEffect, useRef, useState } from "react";
-import { api, type Category, type Rule } from "@/lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api, type Category, type Rule, type Tx, type AIRuleSuggestion } from "@/lib/api";
 import { downloadCsv, parseCsv } from "@/lib/csv";
+import { suggestRules, type Suggestion } from "@/lib/suggestions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 
 const FIELDS = ["partner_iban", "partner_name", "type", "payment_reference"];
 const MATCHES = ["exact", "keyword"];
 
+type ListItem =
+  | { source: "heuristic"; key: string; pattern: string; categoryName: string; categoryId: number; count: number; matchType: "exact" }
+  | { source: "ai"; key: string; pattern: string; categoryName: string; categoryId: number; reason: string; matchType: string };
+
 export default function Rules() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
+  const [txns, setTxns] = useState<Tx[]>([]);
   const [draft, setDraft] = useState({ field: "partner_name", match_type: "keyword", pattern: "", category_id: 0 });
+  const [aiSuggestions, setAiSuggestions] = useState<AIRuleSuggestion[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [suggestPhase, setSuggestPhase] = useState<"idle" | "running" | "stopped" | "error" | "done">("idle");
+  const [suggestLogs, setSuggestLogs] = useState<string[]>([]);
+  const [suggestError, setSuggestError] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const startRef = useRef(0);
 
   const reload = () => api.rules().then(setRules);
-  useEffect(() => { reload(); api.categories().then(setCats); }, []);
+  useEffect(() => { reload(); api.categories().then(setCats); api.transactions().then(setTxns); }, []);
 
   const catName = (id: number) => cats.find((c) => c.id === id)?.name ?? id;
 
@@ -75,8 +94,162 @@ export default function Rules() {
     e.target.value = "";
   }
 
+  useEffect(() => {
+    if (suggestPhase !== "running") return;
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [suggestPhase]);
+
+  const heuristicSuggestions = useMemo(
+    () => suggestRules(txns, rules, cats),
+    [txns, rules, cats],
+  );
+
+  const items = useMemo<ListItem[]>(() => {
+    const heuristic: ListItem[] = heuristicSuggestions
+      .filter((s: Suggestion) => !dismissed.has(`h:${s.partnerName}:${s.categoryName}`))
+      .map((s) => ({
+        source: "heuristic", key: `h:${s.partnerName}:${s.categoryName}`,
+        pattern: s.partnerName, categoryName: s.categoryName, categoryId: s.categoryId,
+        count: s.count, matchType: "exact",
+      }));
+    const ai: ListItem[] = aiSuggestions
+      .filter((s) => !dismissed.has(`a:${s.pattern}:${s.category_name}`))
+      .map((s) => ({
+        source: "ai", key: `a:${s.pattern}:${s.category_name}`,
+        pattern: s.pattern, categoryName: s.category_name, categoryId: s.category_id,
+        reason: s.reason, matchType: s.match_type,
+      }));
+    return [...heuristic, ...ai];
+  }, [heuristicSuggestions, aiSuggestions, dismissed]);
+
+  async function acceptItem(item: ListItem) {
+    try {
+      await api.createRule({ field: "partner_name", match_type: item.matchType, pattern: item.pattern, category_id: item.categoryId });
+      toast.success(`Rule created: "${item.pattern}" → ${item.categoryName}`);
+      setDismissed((prev) => new Set(prev).add(item.key));
+      reload();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  }
+
+  function dismissItem(item: ListItem) {
+    setDismissed((prev) => new Set(prev).add(item.key));
+  }
+
+  async function suggestWithAI() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    startRef.current = Date.now();
+    setElapsed(0);
+    setSuggestLogs([]);
+    setSuggestError("");
+    setSuggestPhase("running");
+    try {
+      const resp = await fetch("/api/rules/suggest", { method: "POST", signal: controller.signal });
+      if (!resp.ok || !resp.body) {
+        throw new Error(await resp.text());
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const parsed = JSON.parse(line);
+          if (parsed.done) {
+            if (parsed.error) {
+              setSuggestError(parsed.error);
+              setSuggestPhase("error");
+            } else {
+              setAiSuggestions((prev) => [...prev, ...(parsed.suggestions ?? [])]);
+              setSuggestPhase("done");
+            }
+          } else if (parsed.log) {
+            setSuggestLogs((prev) => [...prev, parsed.log]);
+          }
+        }
+      }
+    } catch (e) {
+      if (controller.signal.aborted) {
+        setSuggestPhase("stopped");
+      } else {
+        setSuggestError(String(e));
+        setSuggestPhase("error");
+      }
+    }
+  }
+
+  function stopSuggesting() {
+    abortRef.current?.abort();
+  }
+
+  function closeSuggestPopup() {
+    setSuggestPhase("idle");
+  }
+
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader><CardTitle>AI-suggested rules</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Button onClick={suggestWithAI} disabled={suggestPhase === "running"}>Suggest with AI</Button>
+          {items.length === 0 ? (
+            <p className="text-muted-foreground">No rule suggestions right now.</p>
+          ) : (
+            items.map((item) => (
+              <div key={item.key} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                <div>
+                  <div>
+                    <strong>{item.pattern}</strong> → {item.categoryName}
+                    {item.source === "ai" && <Badge variant="secondary" className="ml-2">AI</Badge>}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.source === "heuristic" ? `seen ${item.count} times` : item.reason}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => acceptItem(item)}>Accept</Button>
+                  <Button size="sm" variant="ghost" onClick={() => dismissItem(item)}>Dismiss</Button>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={suggestPhase !== "idle"} onOpenChange={(open) => { if (!open && suggestPhase !== "running") closeSuggestPopup(); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Suggesting rules with AI</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2 text-sm">
+              {suggestLogs.length === 0 ? (
+                <p className="text-muted-foreground">Starting…</p>
+              ) : (
+                suggestLogs.map((l, i) => <p key={i}>{l}</p>)
+              )}
+            </div>
+            {suggestPhase === "running" && <p className="text-xs text-muted-foreground">Elapsed: {elapsed}s</p>}
+            {suggestPhase === "stopped" && <p className="text-sm text-muted-foreground">Stopped.</p>}
+            {suggestPhase === "error" && <p className="text-sm text-destructive">{suggestError}</p>}
+            {suggestPhase === "done" && <p className="text-sm text-muted-foreground">Done.</p>}
+          </div>
+          <DialogFooter>
+            {suggestPhase === "running" ? (
+              <Button variant="destructive" onClick={stopSuggesting}>Stop</Button>
+            ) : (
+              <Button variant="outline" onClick={closeSuggestPopup}>Close</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-wrap items-end gap-2">
         <Select value={draft.field} onValueChange={(v) => setDraft({ ...draft, field: v ?? draft.field })}>
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
