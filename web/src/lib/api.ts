@@ -26,6 +26,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
     }).then(j<void>),
   deleteTransaction: (id: number) => fetch(`/api/transactions/${id}`, { method: "DELETE" }).then(j<void>),
+  deleteAccount: (id: number) => fetch(`/api/accounts/${id}`, { method: "DELETE" }).then(j<void>),
   upload: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
