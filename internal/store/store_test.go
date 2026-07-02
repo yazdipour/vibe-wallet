@@ -129,3 +129,38 @@ func TestDeleteTransaction(t *testing.T) {
 		t.Fatalf("expected 0 transactions after delete, got %d err=%v", len(txns), err)
 	}
 }
+
+func TestInsertTransactionsPersistsCategory(t *testing.T) {
+	s := newStore(t)
+
+	cats, err := s.ListCategories()
+	if err != nil || len(cats) == 0 {
+		t.Fatalf("expected seeded categories: %v", err)
+	}
+	catID := cats[0].ID
+
+	n, err := s.InsertTransactions([]model.Transaction{
+		{AccountName: "Main", PartnerName: "Imported Row", AmountEUR: -12, DedupeHash: "import-1",
+			CategoryID: &catID, CategorizedBy: "import"},
+	})
+	if err != nil || n != 1 {
+		t.Fatalf("insert: n=%d err=%v", n, err)
+	}
+
+	txns, err := s.ListTransactions(0)
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	var found bool
+	for _, tx := range txns {
+		if tx.PartnerName == "Imported Row" {
+			found = true
+			if tx.CategoryName != cats[0].Name || tx.CategorizedBy != "import" {
+				t.Fatalf("unexpected imported row: %+v", tx)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("imported row not found")
+	}
+}

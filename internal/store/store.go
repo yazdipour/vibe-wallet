@@ -232,12 +232,18 @@ func (s *Store) InsertTransactions(txns []model.Transaction) (int, error) {
 			}
 			accIDs[t.AccountName] = id
 		}
+		var categorizedBy any
+		if t.CategorizedBy != "" {
+			categorizedBy = t.CategorizedBy
+		}
 		res, err := tx.Exec(`INSERT OR IGNORE INTO transactions
 			(account_id,booking_date,value_date,partner_name,partner_iban,type,
-			 payment_reference,amount_eur,original_amount,original_currency,exchange_rate,dedupe_hash)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+			 payment_reference,amount_eur,original_amount,original_currency,exchange_rate,dedupe_hash,
+			 category_id,categorized_by)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			id, t.BookingDate, t.ValueDate, t.PartnerName, t.PartnerIban, t.Type,
-			t.PaymentReference, t.AmountEUR, t.OriginalAmount, t.OriginalCurrency, t.ExchangeRate, t.DedupeHash)
+			t.PaymentReference, t.AmountEUR, t.OriginalAmount, t.OriginalCurrency, t.ExchangeRate, t.DedupeHash,
+			t.CategoryID, categorizedBy)
 		if err != nil {
 			return 0, err
 		}
