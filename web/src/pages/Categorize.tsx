@@ -127,7 +127,10 @@ export default function Categorize() {
               toast.success(`Rules: ${parsed.rules}, LLM: ${parsed.llm}, Skipped: ${parsed.skipped}`);
             }
           } else {
-            setLog((prev) => [...(prev ?? []), parsed as CategorizeLogEntry]);
+            const entry = parsed as CategorizeLogEntry;
+            if (entry.source !== "skipped") {
+              setLog((prev) => [...(prev ?? []), entry]);
+            }
             setRunProcessed((prev) => prev + 1);
           }
         }
@@ -155,7 +158,7 @@ export default function Categorize() {
 
           {log && (
             log.length === 0 ? (
-              <p className="text-muted-foreground">Nothing to categorize.</p>
+              <p className="text-muted-foreground">No records were categorized.</p>
             ) : (
               <Table>
                 <TableHeader>
