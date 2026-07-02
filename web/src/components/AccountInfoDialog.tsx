@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Users } from "lucide-react";
+import { Users, Download } from "lucide-react";
 import { api, type Account, type Tx } from "@/lib/api";
+import { downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -8,16 +9,25 @@ import {
 
 export function AccountInfoDialog() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [counts, setCounts] = useState<Map<number, number>>(new Map());
+  const [txns, setTxns] = useState<Tx[]>([]);
 
   async function load() {
-    const [accs, txns] = await Promise.all([api.accounts(), api.transactions()]);
+    const [accs, allTxns] = await Promise.all([api.accounts(), api.transactions()]);
     setAccounts(accs);
-    const byAccount = new Map<number, number>();
-    for (const t of txns as Tx[]) {
-      byAccount.set(t.account_id, (byAccount.get(t.account_id) ?? 0) + 1);
+    setTxns(allTxns);
+  }
+
+  function countFor(accountId: number): number {
+    return txns.filter((t) => t.account_id === accountId).length;
+  }
+
+  function exportAccount(account: Account) {
+    const rows: string[][] = [["Date", "Partner", "Reference", "Amount", "Category", "Account"]];
+    for (const t of txns) {
+      if (t.account_id !== account.id || !t.category_name) continue;
+      rows.push([t.booking_date, t.partner_name, t.payment_reference, String(t.amount_eur), t.category_name, account.name]);
     }
-    setCounts(byAccount);
+    downloadCsv(`${account.name}-export.csv`, rows);
   }
 
   return (
@@ -34,9 +44,14 @@ export function AccountInfoDialog() {
             accounts.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg border p-2">
                 <span>{a.name}</span>
-                <span className="text-sm text-muted-foreground">
-                  {counts.get(a.id) ?? 0} transaction{(counts.get(a.id) ?? 0) === 1 ? "" : "s"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {countFor(a.id)} transaction{countFor(a.id) === 1 ? "" : "s"}
+                  </span>
+                  <Button size="icon-sm" variant="ghost" onClick={() => exportAccount(a)}>
+                    <Download size={14} />
+                  </Button>
+                </div>
               </div>
             ))
           )}
