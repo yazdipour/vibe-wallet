@@ -115,3 +115,72 @@ func TestPingUnreachable(t *testing.T) {
 		t.Fatalf("want unreachable, got %+v", res)
 	}
 }
+
+func TestSuggestRulesParsesResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `[{"pattern":"AMAZON","match_type":"keyword","category":"Shopping","reason":"varies per order"}]`}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	llm := NewLLM(LLMConfig{BaseURL: srv.URL, Model: "test"})
+	suggestions, err := llm.SuggestRules(context.Background(),
+		[]PartnerCategory{{Partner: "AMAZON MKTP DE", Category: "Shopping"}},
+		nil, []string{"Shopping", "Groceries"})
+	if err != nil {
+		t.Fatalf("SuggestRules: %v", err)
+	}
+	if len(suggestions) != 1 || suggestions[0].Pattern != "AMAZON" || suggestions[0].MatchType != "keyword" ||
+		suggestions[0].Category != "Shopping" || suggestions[0].Reason != "varies per order" {
+		t.Fatalf("unexpected suggestions: %+v", suggestions)
+	}
+}
+
+func TestSuggestRulesDefaultsInvalidMatchType(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `[{"pattern":"Lidl","match_type":"fuzzy","category":"Groceries","reason":"x"}]`}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	llm := NewLLM(LLMConfig{BaseURL: srv.URL, Model: "test"})
+	suggestions, err := llm.SuggestRules(context.Background(),
+		[]PartnerCategory{{Partner: "Lidl", Category: "Groceries"}}, nil, []string{"Groceries"})
+	if err != nil {
+		t.Fatalf("SuggestRules: %v", err)
+	}
+	if len(suggestions) != 1 || suggestions[0].MatchType != "exact" {
+		t.Fatalf("expected match_type to default to exact: %+v", suggestions)
+	}
+}
+
+func TestSuggestRulesDropsUnknownCategory(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `[
+					{"pattern":"Lidl","match_type":"exact","category":"Groceries","reason":"x"},
+					{"pattern":"Ghost","match_type":"exact","category":"NotARealCategory","reason":"y"}
+				]`}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	llm := NewLLM(LLMConfig{BaseURL: srv.URL, Model: "test"})
+	suggestions, err := llm.SuggestRules(context.Background(),
+		[]PartnerCategory{{Partner: "Lidl", Category: "Groceries"}, {Partner: "Ghost", Category: "NotARealCategory"}},
+		nil, []string{"Groceries"})
+	if err != nil {
+		t.Fatalf("SuggestRules: %v", err)
+	}
+	if len(suggestions) != 1 || suggestions[0].Pattern != "Lidl" {
+		t.Fatalf("expected only the known-category suggestion to survive: %+v", suggestions)
+	}
+}

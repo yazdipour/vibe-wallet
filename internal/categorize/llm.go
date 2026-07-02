@@ -166,3 +166,124 @@ func (l *LLM) Ping(ctx context.Context) PingResult {
 		Message: fmt.Sprintf("model not in server's list (%d available)", len(mr.Data)),
 	}
 }
+
+type PartnerCategory struct {
+	Partner  string
+	Category string
+}
+
+type RuleSuggestion struct {
+	Pattern   string `json:"pattern"`
+	MatchType string `json:"match_type"`
+	Category  string `json:"category"`
+	Reason    string `json:"reason"`
+}
+
+// SuggestRules asks the LLM to propose new categorization rules for
+// partners that have been categorized by the LLM but aren't yet covered by
+// any existing rule.
+func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, existingPatterns []string, categories []string) ([]RuleSuggestion, error) {
+	if len(partners) == 0 {
+		return nil, nil
+	}
+
+	var pcLines []string
+	for _, p := range partners {
+		pcLines = append(pcLines, fmt.Sprintf("%s -> %s", p.Partner, p.Category))
+	}
+
+	prompt := fmt.Sprintf(
+		"You help build categorization rules for bank transactions. Below is a list of merchant "+
+			"partners and the category an automatic classifier most recently assigned them. Existing "+
+			"rules already cover these patterns, do not repeat them: %s\n\n"+
+			"Partners and their categories:\n%s\n\n"+
+			"Categories available: %s\n\n"+
+			"Suggest additional rules to automatically categorize future transactions from these "+
+			"merchants. For each rule, choose \"exact\" match_type if the partner name is always "+
+			"identical, or \"keyword\" if only part of the name is stable (e.g. a merchant ID varies). "+
+			"Reply with ONLY a JSON array of objects of the form "+
+			"{\"pattern\":\"<text>\",\"match_type\":\"exact\"|\"keyword\",\"category\":\"<name>\",\"reason\":\"<reason>\"}, nothing else.",
+		strings.Join(existingPatterns, ", "), strings.Join(pcLines, "\n"), strings.Join(categories, ", "))
+
+	body, _ := json.Marshal(chatReq{
+		Model:    l.cfg.Model,
+		Stream:   false,
+		Messages: []chatMsg{{Role: "user", Content: prompt}},
+	})
+
+	url := strings.TrimRight(l.cfg.BaseURL, "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if l.cfg.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+l.cfg.APIKey)
+	}
+
+	resp, err := l.hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("llm http %d", resp.StatusCode)
+	}
+
+	var cr chatResp
+	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		return nil, err
+	}
+	if len(cr.Choices) == 0 {
+		return nil, nil
+	}
+
+	raw := parseSuggestionsContent(cr.Choices[0].Message.Content)
+
+	catByLower := map[string]string{}
+	for _, c := range categories {
+		catByLower[strings.ToLower(c)] = c
+	}
+
+	var out []RuleSuggestion
+	for _, r := range raw {
+		canonical, ok := catByLower[strings.ToLower(r.Category)]
+		if !ok {
+			continue
+		}
+		matchType := r.MatchType
+		if matchType != "exact" && matchType != "keyword" {
+			matchType = "exact"
+		}
+		out = append(out, RuleSuggestion{
+			Pattern: r.Pattern, MatchType: matchType, Category: canonical, Reason: r.Reason,
+		})
+	}
+	return out, nil
+}
+
+type ruleSuggestionResponse struct {
+	Pattern   string `json:"pattern"`
+	MatchType string `json:"match_type"`
+	Category  string `json:"category"`
+	Reason    string `json:"reason"`
+}
+
+// parseSuggestionsContent extracts a JSON array of rule suggestions from the
+// LLM's reply, optionally wrapped in a ```json ... ``` fence (same tolerant
+// parsing pattern as parseClassifyContent). Returns nil if the content
+// isn't a valid JSON array — the caller treats that as "no suggestions"
+// rather than an error, consistent with this package's fallback philosophy.
+func parseSuggestionsContent(content string) []ruleSuggestionResponse {
+	trimmed := strings.TrimSpace(content)
+	trimmed = strings.TrimPrefix(trimmed, "```json")
+	trimmed = strings.TrimPrefix(trimmed, "```")
+	trimmed = strings.TrimSuffix(trimmed, "```")
+	trimmed = strings.TrimSpace(trimmed)
+
+	var out []ruleSuggestionResponse
+	if err := json.Unmarshal([]byte(trimmed), &out); err != nil {
+		return nil
+	}
+	return out
+}
