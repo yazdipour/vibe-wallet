@@ -185,3 +185,99 @@ func TestOpenMigratesCategoryKindInfersFromTransactions(t *testing.T) {
 		t.Fatalf("manual kind edit must survive reopening, got %q", groceriesKindAfter)
 	}
 }
+
+func TestOpenPrunesDefaultSeedRulesKeepingOnlyLidl(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old-rules.db")
+
+	// Simulate a pre-existing database seeded before the default rules were
+	// pruned down to just Lidl (the shape any pre-existing container has).
+	// Built with raw schema + manual inserts (not this package's Open()) so
+	// the one-time prune marker is NOT set yet when the real Open() below
+	// runs for the first time against this data.
+	oldDB, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := execScript(oldDB, schemaSQL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := oldDB.Exec(`INSERT INTO categories (name, kind) VALUES ('Groceries','expense'), ('Eating Out','expense')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := oldDB.Exec(`
+		INSERT INTO rules (field, match_type, pattern, category_id)
+		SELECT 'partner_name', 'keyword', 'Lidl', id FROM categories WHERE name='Groceries'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := oldDB.Exec(`
+		INSERT INTO rules (field, match_type, pattern, category_id)
+		SELECT 'partner_name', 'keyword', 'Aldi', id FROM categories WHERE name='Groceries'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := oldDB.Exec(`
+		INSERT INTO rules (field, match_type, pattern, category_id)
+		SELECT 'partner_name', 'keyword', 'Starbucks', id FROM categories WHERE name='Eating Out'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	// A user-created rule sharing a pattern name with a pruned default, but
+	// on a category that was never seeded that way — must survive.
+	if _, err := oldDB.Exec(`
+		INSERT INTO rules (field, match_type, pattern, category_id)
+		SELECT 'partner_name', 'keyword', 'Netflix', id FROM categories WHERE name='Groceries'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	oldDB.Close()
+
+	d, err := Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer d.Close()
+
+	var aldiCount, starbucksCount, lidlCount, userNetflixCount int
+	d.QueryRow(`SELECT count(*) FROM rules WHERE pattern='Aldi'`).Scan(&aldiCount)
+	d.QueryRow(`SELECT count(*) FROM rules WHERE pattern='Starbucks'`).Scan(&starbucksCount)
+	d.QueryRow(`SELECT count(*) FROM rules WHERE pattern='Lidl'`).Scan(&lidlCount)
+	d.QueryRow(`
+		SELECT count(*) FROM rules r JOIN categories c ON r.category_id=c.id
+		WHERE r.pattern='Netflix' AND c.name='Groceries'
+	`).Scan(&userNetflixCount)
+
+	if aldiCount != 0 {
+		t.Fatalf("want Aldi rule pruned, found %d", aldiCount)
+	}
+	if starbucksCount != 0 {
+		t.Fatalf("want Starbucks rule pruned, found %d", starbucksCount)
+	}
+	if lidlCount != 1 {
+		t.Fatalf("want Lidl rule kept, found %d", lidlCount)
+	}
+	if userNetflixCount != 1 {
+		t.Fatalf("a rule sharing a pruned pattern name on a different category must survive, found %d", userNetflixCount)
+	}
+
+	// Re-adding a pruned pattern after cleanup must survive future restarts
+	// (the prune is one-time, not a standing filter).
+	if _, err := d.Exec(`
+		INSERT INTO rules (field, match_type, pattern, category_id)
+		SELECT 'partner_name', 'keyword', 'Aldi', id FROM categories WHERE name='Groceries'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+
+	d2, err := Open(path)
+	if err != nil {
+		t.Fatalf("third Open: %v", err)
+	}
+	defer d2.Close()
+	var aldiCountAfter int
+	d2.QueryRow(`SELECT count(*) FROM rules WHERE pattern='Aldi'`).Scan(&aldiCountAfter)
+	if aldiCountAfter != 1 {
+		t.Fatalf("re-added rule must survive future restarts, found %d", aldiCountAfter)
+	}
+}

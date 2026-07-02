@@ -127,6 +127,47 @@ func migrateCategoryKind(d *sql.DB) error {
 	return err
 }
 
+// defaultSeedRules are the example keyword rules (pattern, category name)
+// that used to ship in seed.sql before it was pruned down to just Lidl.
+var defaultSeedRules = []struct{ pattern, category string }{
+	{"Aldi", "Groceries"}, {"Hofer", "Groceries"}, {"Billa", "Groceries"}, {"Spar", "Groceries"}, {"Penny", "Groceries"},
+	{"McDonald", "Eating Out"}, {"Starbucks", "Eating Out"},
+	{"Uber", "Transport"}, {"OEBB", "Transport"}, {"Wiener Linien", "Transport"},
+	{"Amazon", "Shopping"}, {"IKEA", "Shopping"},
+	{"Netflix", "Entertainment"}, {"Spotify", "Entertainment"},
+	{"A1", "Bills & Utilities"}, {"Magenta", "Bills & Utilities"},
+}
+
+// migratePruneDefaultSeedRules deletes the pre-set example rules that used
+// to ship in seed.sql, keeping only Lidl. Runs exactly once, guarded by a
+// settings marker, so a user who later re-adds one of these exact
+// pattern+category combinations never has it silently removed again on a
+// future restart. Matching on category (not just pattern) means a user's
+// own rule that happens to share a pruned pattern's text on a different
+// category is left untouched.
+func migratePruneDefaultSeedRules(d *sql.DB) error {
+	var marker string
+	err := d.QueryRow(`SELECT value FROM settings WHERE key='default_rules_pruned_v1'`).Scan(&marker)
+	if err == nil {
+		return nil // already ran
+	}
+	if err != sql.ErrNoRows {
+		return err
+	}
+
+	for _, r := range defaultSeedRules {
+		if _, err := d.Exec(`
+			DELETE FROM rules WHERE field='partner_name' AND match_type='keyword' AND pattern=?
+			AND category_id IN (SELECT id FROM categories WHERE name=?)`,
+			r.pattern, r.category,
+		); err != nil {
+			return err
+		}
+	}
+	_, err = d.Exec(`INSERT INTO settings (key, value) VALUES ('default_rules_pruned_v1', 'true')`)
+	return err
+}
+
 // Open opens (or creates) the SQLite database, applies the schema and seed
 // data, and returns a ready connection. Use ":memory:" in tests.
 func Open(path string) (*sql.DB, error) {
@@ -157,6 +198,10 @@ func Open(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	if err := execScript(d, seedSQL); err != nil {
+		d.Close()
+		return nil, err
+	}
+	if err := migratePruneDefaultSeedRules(d); err != nil {
 		d.Close()
 		return nil, err
 	}
