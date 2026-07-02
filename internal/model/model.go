@@ -17,6 +17,7 @@ type Transaction struct {
 	CategoryID       *int64   `json:"category_id"`
 	CategorizedBy    string   `json:"categorized_by"`
 	CategoryName     string   `json:"category_name"`
+	Category         string   `json:"-"` // raw category name from a native-format CSV row, resolved by the upload handler
 	DedupeHash       string   `json:"-"`
 }
 
