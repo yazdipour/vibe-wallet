@@ -33,10 +33,10 @@ export default function Visualization() {
     () => filterTransactions(txns, accountId, from, to),
     [txns, accountId, from, to],
   );
-  const summary = useMemo(() => summarize(filtered), [filtered]);
-  const months = useMemo(() => monthlyTotals(filtered), [filtered]);
-  const expensesByCategory = useMemo(() => categoryTotals(filtered, "expense"), [filtered]);
-  const incomeByCategory = useMemo(() => categoryTotals(filtered, "income"), [filtered]);
+  const summary = useMemo(() => summarize(filtered, categories), [filtered, categories]);
+  const months = useMemo(() => monthlyTotals(filtered, categories), [filtered, categories]);
+  const expensesByCategory = useMemo(() => categoryTotals(filtered, categories, "expense"), [filtered, categories]);
+  const incomeByCategory = useMemo(() => categoryTotals(filtered, categories, "income"), [filtered, categories]);
 
   const colorForSlice = (name: string, index: number): string => {
     const category = categories.find((c) => c.name === name);
