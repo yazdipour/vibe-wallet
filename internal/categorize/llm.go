@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -48,6 +49,8 @@ type classifyResponse struct {
 // Classify asks the LLM to pick exactly one category for a transaction
 // partner and explain why, then snaps the answer to a known category name.
 func (l *LLM) Classify(ctx context.Context, partner string, categories []string) (string, string, error) {
+	start := time.Now()
+	log.Printf("llm: classifying partner %q", partner)
 	prompt := fmt.Sprintf(
 		"You categorise bank transactions. Choose exactly ONE category from this list "+
 			"that best matches the merchant/partner, and give a one-sentence reason. "+
@@ -64,6 +67,7 @@ func (l *LLM) Classify(ctx context.Context, partner string, categories []string)
 	url := strings.TrimRight(l.cfg.BaseURL, "/") + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
+		log.Printf("llm: classify %q failed building request: %v", partner, err)
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -73,27 +77,33 @@ func (l *LLM) Classify(ctx context.Context, partner string, categories []string)
 
 	resp, err := l.hc.Do(req)
 	if err != nil {
+		log.Printf("llm: classify %q failed after %s: %v", partner, time.Since(start), err)
 		return "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
+		log.Printf("llm: classify %q got http %d after %s", partner, resp.StatusCode, time.Since(start))
 		return "", "", fmt.Errorf("llm http %d", resp.StatusCode)
 	}
 
 	var cr chatResp
 	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		log.Printf("llm: classify %q failed decoding response after %s: %v", partner, time.Since(start), err)
 		return "", "", err
 	}
 	if len(cr.Choices) == 0 {
+		log.Printf("llm: classify %q got no choices after %s", partner, time.Since(start))
 		return "Uncategorized", "", nil
 	}
 
 	answer, reason := parseClassifyContent(cr.Choices[0].Message.Content)
 	for _, c := range categories {
 		if strings.EqualFold(answer, c) {
+			log.Printf("llm: classify %q -> %q in %s", partner, c, time.Since(start))
 			return c, reason, nil
 		}
 	}
+	log.Printf("llm: classify %q -> Uncategorized in %s", partner, time.Since(start))
 	return "Uncategorized", reason, nil
 }
 
@@ -186,6 +196,8 @@ func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, exis
 	if len(partners) == 0 {
 		return nil, nil
 	}
+	start := time.Now()
+	log.Printf("llm: suggesting rules for %d partner(s)", len(partners))
 
 	var pcLines []string
 	for _, p := range partners {
@@ -214,6 +226,7 @@ func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, exis
 	url := strings.TrimRight(l.cfg.BaseURL, "/") + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
+		log.Printf("llm: suggest rules failed building request: %v", err)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -223,18 +236,22 @@ func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, exis
 
 	resp, err := l.hc.Do(req)
 	if err != nil {
+		log.Printf("llm: suggest rules failed after %s: %v", time.Since(start), err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
+		log.Printf("llm: suggest rules got http %d after %s", resp.StatusCode, time.Since(start))
 		return nil, fmt.Errorf("llm http %d", resp.StatusCode)
 	}
 
 	var cr chatResp
 	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		log.Printf("llm: suggest rules failed decoding response after %s: %v", time.Since(start), err)
 		return nil, err
 	}
 	if len(cr.Choices) == 0 {
+		log.Printf("llm: suggest rules got no choices after %s", time.Since(start))
 		return nil, nil
 	}
 
@@ -259,6 +276,7 @@ func (l *LLM) SuggestRules(ctx context.Context, partners []PartnerCategory, exis
 			Pattern: r.Pattern, MatchType: matchType, Category: canonical, Reason: r.Reason,
 		})
 	}
+	log.Printf("llm: suggest rules -> %d suggestion(s) in %s", len(out), time.Since(start))
 	return out, nil
 }
 

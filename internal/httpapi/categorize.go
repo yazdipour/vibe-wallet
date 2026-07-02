@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -11,11 +12,13 @@ import (
 func (s *Server) categorize(w http.ResponseWriter, r *http.Request) {
 	kv, err := s.store.GetSettings()
 	if err != nil {
+		log.Printf("categorize: GetSettings failed: %v", err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
 	llm, concurrency := buildClassifier(kv)
 
+	log.Println("categorize: run starting")
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	flusher, _ := w.(http.Flusher)
 	enc := json.NewEncoder(w)
@@ -29,12 +32,14 @@ func (s *Server) categorize(w http.ResponseWriter, r *http.Request) {
 
 	res, err := categorize.Run(r.Context(), s.store, llm, concurrency, onEntry)
 	if err != nil {
+		log.Printf("categorize: run failed: %v", err)
 		enc.Encode(map[string]any{"done": true, "error": err.Error()})
 		if flusher != nil {
 			flusher.Flush()
 		}
 		return
 	}
+	log.Printf("categorize: run complete — rules=%d llm=%d skipped=%d", res.Rules, res.LLM, res.Skipped)
 	enc.Encode(map[string]any{
 		"done": true, "rules": res.Rules, "llm": res.LLM, "skipped": res.Skipped,
 	})

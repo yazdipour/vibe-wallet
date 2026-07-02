@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,14 +44,17 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
+	log.Println("upload: parsing CSV")
 	txns, err := csvimport.Parse(f)
 	if err != nil {
+		log.Printf("upload: parse failed: %v", err)
 		http.Error(w, err.Error(), 400)
 		return
 	}
 
 	cats, err := s.store.ListCategories()
 	if err != nil {
+		log.Printf("upload: ListCategories failed: %v", err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -76,8 +80,10 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 
 	n, err := s.store.InsertTransactions(toInsert)
 	if err != nil {
+		log.Printf("upload: InsertTransactions failed: %v", err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	log.Printf("upload: inserted %d, skipped %d (unknown category)", n, skipped)
 	writeJSON(w, 200, map[string]int{"inserted": n, "skipped_unknown_category": skipped})
 }
