@@ -28,6 +28,28 @@ func TestOpenSeedsDefaults(t *testing.T) {
 	}
 }
 
+func TestOpenSeedsIncomeCategoriesOnFreshDatabase(t *testing.T) {
+	d, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer d.Close()
+
+	var incomeKind, savingsKind string
+	if err := d.QueryRow(`SELECT kind FROM categories WHERE name='Income'`).Scan(&incomeKind); err != nil {
+		t.Fatalf("query Income kind: %v", err)
+	}
+	if err := d.QueryRow(`SELECT kind FROM categories WHERE name='Savings'`).Scan(&savingsKind); err != nil {
+		t.Fatalf("query Savings kind: %v", err)
+	}
+	if incomeKind != "income" {
+		t.Fatalf("want Income category seeded with kind='income', got %q", incomeKind)
+	}
+	if savingsKind != "income" {
+		t.Fatalf("want Savings category seeded with kind='income', got %q", savingsKind)
+	}
+}
+
 func TestOpenMigratesCategoryColumns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "old.db")
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { DndContext, useDraggable, useDroppable, type DragEndEvent } from "@dnd-kit/core";
-import { GripVertical } from "lucide-react";
+import { ArrowLeftRight, GripVertical } from "lucide-react";
 import { api, type Category, type Rule, type CategorizeLogEntry } from "@/lib/api";
 import { CATEGORY_ICONS, resolveIcon } from "@/lib/icons";
 import { PALETTE, readableTextColor } from "@/lib/colors";
@@ -27,7 +27,7 @@ type NewRuleDraft = { field: string; match_type: string; pattern: string };
 
 function CategoryRow({
   category, rules, isExpanded, editDraft, newRule,
-  onToggleExpand, onEditDraftChange, onNewRuleChange, onDeleteRule, onSaveAppearance, onAddRule,
+  onToggleExpand, onEditDraftChange, onNewRuleChange, onDeleteRule, onSaveAppearance, onAddRule, onToggleKind,
 }: {
   category: Category;
   rules: Rule[];
@@ -40,6 +40,7 @@ function CategoryRow({
   onDeleteRule: (id: number) => void;
   onSaveAppearance: () => void;
   onAddRule: () => void;
+  onToggleKind: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: category.id });
   const Icon = resolveIcon(category.icon);
@@ -59,6 +60,15 @@ function CategoryRow({
           aria-label={`Drag ${category.name} between Income and Expenses`}
         >
           <GripVertical size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleKind}
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={`Mark ${category.name} as ${category.kind === "income" ? "expense" : "income"}`}
+          title={`Mark as ${category.kind === "income" ? "expense" : "income"}`}
+        >
+          <ArrowLeftRight size={14} />
         </button>
         <button type="button" className="flex flex-1 items-center gap-2 text-left" onClick={onToggleExpand}>
           <span
@@ -213,6 +223,15 @@ export default function Categorize() {
     }
   }
 
+  async function applyKindChange(categoryId: number, newKind: "income" | "expense") {
+    try {
+      const updated = await api.updateCategoryKind(categoryId, newKind);
+      setCategories((prev) => prev.map((c) => (c.id === categoryId ? updated : c)));
+    } catch (e) {
+      toast.error(String(e));
+    }
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const categoryId = Number(event.active.id);
     const overId = event.over?.id;
@@ -220,12 +239,12 @@ export default function Categorize() {
     if (!newKind) return;
     const category = categories.find((c) => c.id === categoryId);
     if (!category || category.kind === newKind) return;
-    try {
-      const updated = await api.updateCategoryKind(categoryId, newKind);
-      setCategories((prev) => prev.map((c) => (c.id === categoryId ? updated : c)));
-    } catch (e) {
-      toast.error(String(e));
-    }
+    await applyKindChange(categoryId, newKind);
+  }
+
+  async function toggleCategoryKind(category: Category) {
+    const newKind = category.kind === "income" ? "expense" : "income";
+    await applyKindChange(category.id, newKind);
   }
 
   async function createCategory() {
@@ -421,6 +440,7 @@ export default function Categorize() {
                       onDeleteRule={deleteCategoryRule}
                       onSaveAppearance={() => saveCategoryAppearance(c.id)}
                       onAddRule={() => addCategoryRule(c.id)}
+                      onToggleKind={() => toggleCategoryKind(c)}
                     />
                   ))
                 )}
@@ -443,6 +463,7 @@ export default function Categorize() {
                       onDeleteRule={deleteCategoryRule}
                       onSaveAppearance={() => saveCategoryAppearance(c.id)}
                       onAddRule={() => addCategoryRule(c.id)}
+                      onToggleKind={() => toggleCategoryKind(c)}
                     />
                   ))
                 )}
