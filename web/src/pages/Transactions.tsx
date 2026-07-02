@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { api, type Account, type Category, type Tx } from "@/lib/api";
 import { filterTxns } from "@/lib/transactions";
 import { formatEUR } from "@/lib/format";
@@ -62,6 +62,15 @@ export default function Transactions() {
       return;
     }
     await assignCategory(tx, ignoreCategory.id);
+  }
+
+  async function unignoreTransaction(tx: Tx) {
+    const uncategorized = categories.find((c) => c.name === "Uncategorized");
+    if (!uncategorized) {
+      toast.error("Uncategorized category not found");
+      return;
+    }
+    await assignCategory(tx, uncategorized.id);
   }
 
   return (
@@ -148,9 +157,15 @@ export default function Transactions() {
                 )}
               </TableCell>
               <TableCell>
-                <Button variant="ghost" size="icon-sm" onClick={() => ignoreTransaction(t)}>
-                  <EyeOff size={14} />
-                </Button>
+                {t.category_name === "Ignore" ? (
+                  <Button variant="ghost" size="icon-sm" onClick={() => unignoreTransaction(t)}>
+                    <Eye size={14} />
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon-sm" onClick={() => ignoreTransaction(t)}>
+                    <EyeOff size={14} />
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))}
