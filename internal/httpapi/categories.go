@@ -68,3 +68,24 @@ func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, c)
 }
+
+func (s *Server) updateCategoryKind(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var in struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || (in.Kind != "income" && in.Kind != "expense") {
+		http.Error(w, "kind must be 'income' or 'expense'", 400)
+		return
+	}
+	c, err := s.store.UpdateCategoryKind(id, in.Kind)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, 200, c)
+}

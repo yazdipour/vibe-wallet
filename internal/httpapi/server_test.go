@@ -571,3 +571,71 @@ func TestSuggestRulesNeverSuggestsIgnore(t *testing.T) {
 		t.Fatalf("expected the Ignore suggestion to be dropped, got: %+v", last.Suggestions)
 	}
 }
+
+func TestUpdateCategoryKind(t *testing.T) {
+	d, _ := db.Open(":memory:")
+	defer d.Close()
+	h := NewServer(store.New(d), os.DirFS("."))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/categories", nil))
+	var cats []struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cats)
+	if len(cats) == 0 {
+		t.Fatal("no seeded categories")
+	}
+	target := cats[0]
+
+	// invalid kind -> 400
+	badReq := httptest.NewRequest("PUT", fmt.Sprintf("/api/categories/%d/kind", target.ID),
+		bytes.NewBufferString(`{"kind":"sideways"}`))
+	badRec := httptest.NewRecorder()
+	h.ServeHTTP(badRec, badReq)
+	if badRec.Code != 400 {
+		t.Fatalf("want 400 for invalid kind, got %d", badRec.Code)
+	}
+
+	// valid update -> 200
+	req := httptest.NewRequest("PUT", fmt.Sprintf("/api/categories/%d/kind", target.ID),
+		bytes.NewBufferString(`{"kind":"income"}`))
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req)
+	if rec2.Code != 200 {
+		t.Fatalf("want 200, got %d %s", rec2.Code, rec2.Body)
+	}
+	var updated struct {
+		ID   int64  `json:"id"`
+		Kind string `json:"kind"`
+	}
+	json.Unmarshal(rec2.Body.Bytes(), &updated)
+	if updated.ID != target.ID || updated.Kind != "income" {
+		t.Fatalf("unexpected response: %s", rec2.Body)
+	}
+
+	// confirm it stuck
+	rec3 := httptest.NewRecorder()
+	h.ServeHTTP(rec3, httptest.NewRequest("GET", "/api/categories", nil))
+	if !bytes.Contains(rec3.Body.Bytes(), []byte(fmt.Sprintf(`"id":%d,"name":%q,"icon"`, target.ID, target.Name))) {
+		// name/icon ordering in JSON is fixed by struct field order, so this
+		// substring check is just a sanity anchor; the real assertion is kind below.
+		t.Logf("categories list: %s", rec3.Body)
+	}
+	var catsAfter []struct {
+		ID   int64  `json:"id"`
+		Kind string `json:"kind"`
+	}
+	json.Unmarshal(rec3.Body.Bytes(), &catsAfter)
+	var stuck bool
+	for _, c := range catsAfter {
+		if c.ID == target.ID && c.Kind == "income" {
+			stuck = true
+		}
+	}
+	if !stuck {
+		t.Fatalf("kind update did not persist: %s", rec3.Body)
+	}
+}
