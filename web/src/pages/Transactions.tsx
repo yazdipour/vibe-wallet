@@ -30,6 +30,7 @@ export default function Transactions() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState<Tx | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   useEffect(() => {
     api.accounts().then(setAccounts);
@@ -121,24 +122,30 @@ export default function Transactions() {
                 {formatEUR(t.amount_eur)}
               </TableCell>
               <TableCell>
-                {t.category_name ? (
+                {t.category_name && editingId !== t.id ? (
                   (() => {
                     const category = categories.find((c) => c.name === t.category_name);
                     const Icon = resolveIcon(category?.icon ?? "Tag");
                     const bg = category?.color ?? "#6b7280";
                     const fg = category?.icon_color ?? "#ffffff";
                     return (
-                      <Badge
-                        variant={categoryVariant(t.categorized_by)}
-                        style={{ backgroundColor: bg, color: fg, borderColor: "transparent" }}
-                      >
-                        <Icon size={12} />
-                        {t.category_name}
-                      </Badge>
+                      <button type="button" onClick={() => setEditingId(t.id)} className="cursor-pointer">
+                        <Badge
+                          variant={categoryVariant(t.categorized_by)}
+                          style={{ backgroundColor: bg, color: fg, borderColor: "transparent" }}
+                        >
+                          <Icon size={12} />
+                          {t.category_name}
+                        </Badge>
+                      </button>
                     );
                   })()
                 ) : (
-                  <Select onValueChange={(v) => v && assignCategory(t, Number(v))}>
+                  <Select
+                    value={categories.find((c) => c.name === t.category_name)?.id ? String(categories.find((c) => c.name === t.category_name)?.id) : undefined}
+                    onValueChange={(v) => { if (v) assignCategory(t, Number(v)); setEditingId(null); }}
+                    onOpenChange={(open) => { if (!open) setEditingId(null); }}
+                  >
                     <SelectTrigger className="w-36"><SelectValue placeholder="Assign…" /></SelectTrigger>
                     <SelectContent>
                       {categories.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
