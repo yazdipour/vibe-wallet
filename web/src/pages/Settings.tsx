@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
 
 function healthVariant(status: string): "default" | "destructive" | "outline" {
@@ -56,27 +57,36 @@ export default function Settings() {
   );
 
   return (
-    <Card className="max-w-lg">
-      <CardHeader><CardTitle>LLM configuration (OpenAI-compatible / Ollama)</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        {field("llm_base_url", "Base URL", "http://host.docker.internal:11434/v1")}
-        {field("llm_model", "Model", "llama3.1")}
-        {field("llm_api_key", "API key (leave blank to keep current)")}
-        {field("llm_concurrency", "Parallel workers")}
-        <Button onClick={save}>Save</Button>
+    <div className="max-w-lg space-y-4">
+      <Card>
+        <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
+        <CardContent>
+          <ThemeToggle />
+        </CardContent>
+      </Card>
 
-        <div className="flex items-center gap-2 border-t pt-4">
-          {checking ? (
-            <span className="text-sm text-muted-foreground">Checking…</span>
-          ) : health ? (
-            <>
-              <Badge variant={healthVariant(health.status)}>{health.status}</Badge>
-              <span className="text-sm text-muted-foreground">{health.message}</span>
-            </>
-          ) : null}
-          <Button size="sm" variant="ghost" onClick={checkHealth} disabled={checking}>Recheck</Button>
-        </div>
-      </CardContent>
-    </Card>
+      <Card>
+        <CardHeader><CardTitle>LLM configuration (OpenAI-compatible / Ollama)</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          {field("llm_base_url", "Base URL", "http://host.docker.internal:11434/v1")}
+          {field("llm_model", "Model", "llama3.1")}
+          {field("llm_api_key", "API key (leave blank to keep current)")}
+          {field("llm_concurrency", "Parallel workers")}
+          <Button onClick={save}>Save</Button>
+
+          <div className="flex items-center gap-2 border-t pt-4">
+            {checking ? (
+              <span className="text-sm text-muted-foreground">Checking…</span>
+            ) : health ? (
+              <>
+                <Badge variant={healthVariant(health.status)}>{health.status}</Badge>
+                <span className="text-sm text-muted-foreground">{health.message}</span>
+              </>
+            ) : null}
+            <Button size="sm" variant="ghost" onClick={checkHealth} disabled={checking}>Recheck</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

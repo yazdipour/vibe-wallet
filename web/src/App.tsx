@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { Settings as SettingsIcon } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
 import { AccountInfoDialog } from "@/components/AccountInfoDialog";
 import { UploadDialog } from "@/components/UploadDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -15,7 +18,6 @@ const nav = [
   ["/visualize", "Visualize"],
   ["/categorize", "Categorize"],
   ["/rules", "Rules"],
-  ["/settings", "Settings"],
 ] as const;
 
 export default function App() {
@@ -36,6 +38,13 @@ export default function App() {
                 <AccountInfoDialog />
                 <ThemeToggle />
                 <UploadDialog />
+                <NavLink
+                  to="/settings"
+                  className={({ isActive }) =>
+                    cn(buttonVariants({ variant: "ghost", size: "icon" }), isActive && "bg-muted")}
+                >
+                  <SettingsIcon size={16} />
+                </NavLink>
               </div>
             </nav>
           </header>

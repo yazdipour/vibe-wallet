@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 function categoryVariant(by: string): "default" | "secondary" | "outline" {
   if (by === "llm") return "secondary";
-  if (by === "manual") return "outline";
+  if (by === "manual" || by === "import") return "outline";
   return "default";
 }
 
