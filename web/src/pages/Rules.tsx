@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type Category, type Rule } from "@/lib/api";
-import { downloadCsv } from "@/lib/csv";
+import { downloadCsv, parseCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +36,45 @@ export default function Rules() {
     downloadCsv("rules-export.csv", rows);
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (rows.length === 0) {
+      toast.error("Empty file");
+      e.target.value = "";
+      return;
+    }
+    const [header, ...dataRows] = rows;
+    if (header.join(",") !== "Field,MatchType,Pattern,Category") {
+      toast.error("Unrecognized rules CSV format");
+      e.target.value = "";
+      return;
+    }
+    let imported = 0;
+    let skipped = 0;
+    for (const row of dataRows) {
+      const [field, matchType, pattern, categoryName] = row;
+      const cat = cats.find((c) => c.name.toLowerCase() === (categoryName ?? "").toLowerCase());
+      if (!cat) {
+        skipped++;
+        continue;
+      }
+      try {
+        await api.createRule({ field, match_type: matchType, pattern, category_id: cat.id });
+        imported++;
+      } catch {
+        skipped++;
+      }
+    }
+    toast.success(`Imported ${imported} rules, skipped ${skipped}`);
+    reload();
+    e.target.value = "";
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-2">
@@ -55,6 +94,14 @@ export default function Rules() {
         </Select>
         <Button onClick={add}>Add rule</Button>
         <Button variant="outline" onClick={exportRules}>Export</Button>
+        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>Import</Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={onImportFile}
+        />
       </div>
 
       <Table>
