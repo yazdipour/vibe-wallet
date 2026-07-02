@@ -153,7 +153,17 @@ export default function Rules() {
     setDismissed((prev) => new Set(prev).add(item.key));
   }
 
+  function wipeAiSuggestions() {
+    setAiSuggestions([]);
+    setDismissed((prev) => new Set([...prev].filter((k) => !k.startsWith("a:"))));
+    setCategoryOverrides((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith("a:"))));
+    setPatternOverrides((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith("a:"))));
+  }
+
   async function suggestWithAI() {
+    wipeAiSuggestions();
     const controller = new AbortController();
     abortRef.current = controller;
     startRef.current = Date.now();
@@ -183,7 +193,7 @@ export default function Rules() {
               setSuggestError(parsed.error);
               setSuggestPhase("error");
             } else {
-              setAiSuggestions((prev) => [...prev, ...(parsed.suggestions ?? [])]);
+              setAiSuggestions(parsed.suggestions ?? []);
               setSuggestPhase("done");
             }
           } else if (parsed.log) {
@@ -214,7 +224,16 @@ export default function Rules() {
       <Card>
         <CardHeader><CardTitle>AI-suggested rules</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <Button onClick={suggestWithAI} disabled={suggestPhase === "running"}>Suggest with AI</Button>
+          <div className="flex gap-2">
+            <Button onClick={suggestWithAI} disabled={suggestPhase === "running"}>Suggest with AI</Button>
+            <Button
+              variant="outline"
+              onClick={wipeAiSuggestions}
+              disabled={suggestPhase === "running" || aiSuggestions.length === 0}
+            >
+              Wipe suggestions
+            </Button>
+          </div>
           {items.length === 0 ? (
             <p className="text-muted-foreground">No rule suggestions right now.</p>
           ) : (
